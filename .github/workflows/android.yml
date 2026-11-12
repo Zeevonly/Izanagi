@@ -1,0 +1,58 @@
+# Builds the Android APK (arm64-v8a, debug variant) in GitHub Actions with the repo's own ci/android image and
+# tools/android_ci_run.sh (docs/android.md). Run it by hand: Actions > android > Run workflow.
+# The APK is attached to the run as the artifact "p4pc-arm64-v8a-debug".
+# The debug variant installs as "P4PC Debug" (org.p4pc.game.debug) beside any other Persona 4 install:
+# its own saves, settings and ISO grant. Its signing key lives in the cache below; if that cache is ever
+# evicted the next build is signed with a new key and Android will refuse to update over the old install.
+name: android
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    name: APK (arm64-v8a, debug)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 0
+      - name: Build the Android image
+        run: docker build -t p4pc-android ci/android
+      - uses: actions/cache@v4
+        with:
+          path: .android-cache
+          key: android-cache-${{ hashFiles('ci/android/**') }}-${{ github.run_id }}
+          restore-keys: android-cache-${{ hashFiles('ci/android/**') }}-
+      - uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-android-${{ github.run_id }}
+          restore-keys: ccache-android-
+      - name: Build the APK
+        run: |
+          mkdir -p .android-cache .ccache out
+          docker run --rm \
+            -v "$PWD:/lane/src" -v "$PWD/out:/lane/out" \
+            -v "$PWD/.android-cache:/android-cache" -v "$PWD/.ccache:/ccache" \
+            -e P4PC_ANDROID_ABI=arm64-v8a -e P4PC_ANDROID_BUILD=debug \
+            -e P4PC_ANDROID_VERSION_NAME="$(git describe --tags --always)" \
+            -e P4PC_ANDROID_VERSION_CODE="$(git rev-list --count HEAD)" \
+            p4pc-android sh -euc 'git config --global --add safe.directory "*"; sh /lane/src/tools/android_ci_run.sh'
+      - name: Make the container's files readable for the cache and upload steps
+        if: always()
+        run: sudo chown -R "$USER" .android-cache .ccache out || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: p4pc-arm64-v8a-debug
+          path: out/p4pc-arm64-v8a-debug.apk
+          if-no-files-found: error
