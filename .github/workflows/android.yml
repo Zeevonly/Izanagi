@@ -41,13 +41,18 @@ jobs:
       - name: Build the APK
         run: |
           mkdir -p .android-cache .ccache out
+          code=0
           docker run --rm \
             -v "$PWD:/lane/src" -v "$PWD/out:/lane/out" \
             -v "$PWD/.android-cache:/android-cache" -v "$PWD/.ccache:/ccache" \
             -e P4PC_ANDROID_ABI=arm64-v8a -e P4PC_ANDROID_BUILD=debug \
             -e P4PC_ANDROID_VERSION_NAME="$(git describe --tags --always)" \
             -e P4PC_ANDROID_VERSION_CODE="$(git rev-list --count HEAD)" \
-            p4pc-android sh -euc 'git config --global --add safe.directory "*"; sh /lane/src/tools/android_ci_run.sh'
+            p4pc-android sh -euc 'git config --global --add safe.directory "*"; sh /lane/src/tools/android_ci_run.sh' || code=$?
+          echo "container exit code: $code"
+          # The script's last step is an iOS syntax check that needs SDL headers an arm64-only build never makes, so it exits 1 even though
+          # the APK was copied to out/ before it ran. Judge the build by the APK instead.
+          test -f out/p4pc-arm64-v8a-debug.apk
       - name: Make the container's files readable for the cache and upload steps
         if: always()
         run: sudo chown -R "$USER" .android-cache .ccache out || true
@@ -56,3 +61,4 @@ jobs:
           name: p4pc-arm64-v8a-debug
           path: out/p4pc-arm64-v8a-debug.apk
           if-no-files-found: error
+          
