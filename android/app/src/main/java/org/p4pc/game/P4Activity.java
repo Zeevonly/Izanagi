@@ -7,6 +7,7 @@ import android.os.ParcelFileDescriptor;
 import android.os.Binder;
 import android.util.Log;
 import android.view.View;
+import android.view.WindowManager;
 import android.hardware.input.InputManager;
 
 import org.libsdl.app.SDLActivity;
@@ -22,6 +23,7 @@ import java.io.File;
  *              SLUS_217.82 from the disc image.
  *   env, env0, env1, ...   one NAME=VALUE each, set as environment variables (the P4PC_* test switches: P4PC_AUTOPRESS, P4PC_CAPTURE_FRAMES, ...).
  *   pad        "0" hides the touch pad.
+ *   perf       "0" leaves out the 60 Hz display and sustained-performance requests.
  */
 public class P4Activity extends SDLActivity implements InputManager.InputDeviceListener {
     private static final String TAG = "p4pc";
@@ -45,6 +47,19 @@ public class P4Activity extends SDLActivity implements InputManager.InputDeviceL
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // The game paces itself on a 60 Hz tick and updates 30 times a second. On a 90 or 120 Hz screen that tick and the display's refreshes
+        // drift against each other (an occasional repeat or skip), so ask for a 60 Hz mode; and ask phones that support it to hold their clocks
+        // steady instead of throttling under a long session. Both are requests the system may ignore. Launch extra perf=0 leaves them out.
+        if (!"0".equals(getIntent().getStringExtra("perf"))) {
+            try {
+                final WindowManager.LayoutParams attributes = getWindow().getAttributes();
+                attributes.preferredRefreshRate = 60f;
+                getWindow().setAttributes(attributes);
+                getWindow().setSustainedPerformanceMode(true);
+            } catch (RuntimeException e) {
+                Log.w(TAG, "cannot set the display and performance hints", e);
+            }
+        }
         if (!"0".equals(getIntent().getStringExtra("pad"))) {
             pad = new PadOverlay(this);
             SDLActivity.mLayout.addView(pad);
@@ -161,4 +176,4 @@ public class P4Activity extends SDLActivity implements InputManager.InputDeviceL
         }
         return "fd:" + fd.detachFd();
     }
-}
+            }
