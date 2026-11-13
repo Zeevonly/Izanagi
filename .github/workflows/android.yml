@@ -1,6 +1,7 @@
 # Builds the Android APK (arm64-v8a, debug variant) in GitHub Actions with the repo's own ci/android image and
 # tools/android_ci_run.sh (docs/android.md). Run it by hand: Actions > android > Run workflow.
 # The APK is attached to the run as the artifact "p4pc-arm64-v8a-debug".
+# Before building it patches the source so the Resolution setting also takes percentages from 50% up (scale:50% ... scale:800%).
 # The debug variant installs as "P4PC Debug" (org.p4pc.game.debug) beside any other Persona 4 install:
 # its own saves, settings and ISO grant. Its signing key lives in the cache below; if that cache is ever
 # evicted the next build is signed with a new key and Android will refuse to update over the old install.
@@ -26,6 +27,53 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
+      - name: Resolution in percent (scale:50% to scale:800%)
+        run: |
+          python3 - <<'PY'
+          import sys
+
+          def edit(path, pairs):
+              s = open(path).read()
+              for old, new in pairs:
+                  if s.count(old) != 1:
+                      sys.exit("resolution patch: no unique match in %s for: %s" % (path, old.strip().splitlines()[0][:70]))
+                  s = s.replace(old, new)
+              open(path, "w").write(s)
+
+          edit("src/platform/config/p4cfg.h", [(
+          "    int scale;         /* scale:N parameter, 1 to 8; physical sizes need not be integer multiples */\n",
+          "    int scale;         /* scale:N parameter, 1 to 8; physical sizes need not be integer multiples */\n"
+          "    int scalePercent;  /* the scale as a percentage of the native sample grid: 100 times N for scale:N, or P (50 to 800) for scale:P% */\n")])
+
+          edit("src/platform/config/p4cfg.c", [
+          ("    video->resolution = P4CFG_RESOLUTION_SCALE;\n    video->scale = 1;\n    video->renderWidth = video->renderHeight = 0;\n",
+           "    video->resolution = P4CFG_RESOLUTION_SCALE;\n    video->scale = 1;\n    video->scalePercent = 100;\n    video->renderWidth = video->renderHeight = 0;\n"),
+          ("        if (v[6] >= '1' && v[6] <= '8' && end == v + 7 && resolutionEnd(end)) {\n            video->scale = (int)w;\n            return;\n        }\n",
+           "        if (v[6] >= '1' && v[6] <= '8' && end == v + 7 && resolutionEnd(end)) {\n            video->scale = (int)w;\n            video->scalePercent = (int)w * 100;\n            return;\n        }\n"
+           "        /* scale:P% is a percentage of the native sample grid, 50 to 800 */\n"
+           "        if (v[6] >= '1' && v[6] <= '9' && *end == '%' && resolutionEnd(end + 1) && w >= 50 && w <= 800) {\n"
+           "            video->scalePercent = (int)w;\n"
+           "            video->scale = (int)w >= 100 ? (int)w / 100 : 1;\n"
+           "            return;\n"
+           "        }\n"),
+          ("expected native, WxH (1..16384), or scale:1..8; using scale:1", "expected native, WxH (1..16384), scale:1..8 or scale:50%%..800%%; using scale:1"),
+          ("video->resolution != P4CFG_RESOLUTION_SCALE || video->scale > 1 ||", "video->resolution != P4CFG_RESOLUTION_SCALE || video->scalePercent != 100 ||"),
+          ("        video->scale = 1;\n    }\n}\n\nconst P4CfgVideo *p4cfg_video(void)", "        video->scale = 1;\n        video->scalePercent = 100;\n    }\n}\n\nconst P4CfgVideo *p4cfg_video(void)"),
+          ])
+
+          edit("src/render/p4gl_context.c", [
+          ("        *w = p4gl_aspect_native_width() * (unsigned)video->scale;\n        *h = 448u * (unsigned)video->scale;\n",
+           "        *w = (p4gl_aspect_native_width() * (unsigned)video->scalePercent + 50u) / 100u;\n        *h = (448u * (unsigned)video->scalePercent + 50u) / 100u;\n"),
+          ("    else p4pc_ee_snprintf(out, capacity, \"scale:%d\", video->scale);\n",
+           "    else if (video->scalePercent % 100 != 0) p4pc_ee_snprintf(out, capacity, \"scale:%d%c\", video->scalePercent, '%');\n    else p4pc_ee_snprintf(out, capacity, \"scale:%d\", video->scale);\n"),
+          ("    static const char *const choices[] = {\"scale:1\", \"scale:2\", \"scale:3\", \"scale:4\",\n        \"scale:5\", \"scale:6\", \"scale:7\", \"scale:8\", \"native\", \"1366x768\",\n        \"1920x1080\", \"2560x1440\", \"3840x2160\"};\n",
+           "    static const char *const choices[] = {\"scale:50%\", \"scale:60%\", \"scale:70%\", \"scale:75%\", \"scale:80%\", \"scale:90%\",\n        \"scale:1\", \"scale:125%\", \"scale:150%\", \"scale:175%\", \"scale:2\", \"scale:250%\", \"scale:3\", \"scale:4\",\n        \"scale:5\", \"scale:6\", \"scale:7\", \"scale:8\", \"native\", \"1366x768\",\n        \"1920x1080\", \"2560x1440\", \"3840x2160\"};\n"),
+          ("    resolutionFormat(current, sizeof current, unused);\n    for (int i = 0; i < count; i++) if (strcmp(current, choices[i]) == 0) selected = i;\n",
+           "    for (int i = 0; i < count; i++) if (strcmp(choices[i], \"scale:1\") == 0) selected = i;\n    resolutionFormat(current, sizeof current, unused);\n    for (int i = 0; i < count; i++) if (strcmp(current, choices[i]) == 0) selected = i;\n"),
+          ("(video->resolution == P4CFG_RESOLUTION_SCALE && video->scale == 1)", "(video->resolution == P4CFG_RESOLUTION_SCALE && video->scalePercent == 100)"),
+          ])
+          print("resolution percentages patched")
+          PY
       - name: Build the Android image
         run: docker build -t p4pc-android ci/android
       - uses: actions/cache@v4
