@@ -28,13 +28,14 @@ public class P4Launcher extends Activity {
     private static final String[] ASPECT_LABELS = {"Game setting", "4:3 (original)", "16:9 widescreen", "Auto (fit screen)"};
     // Audio buffer, passed as SDL's own settings (SDL reads them from the environment when the audio device opens). The first entry is the
     // default here: a bigger device buffer and Android's normal, not low-latency, AAudio mode make crackling less likely, at the cost of some
-    // delay (about 85 ms for 4096 frames, 170 ms for 8192, at 48 kHz). The last entry sets nothing, which is how the game ran before.
+    // delay (about 85 ms for 4096 frames, 170 ms for 8192, at 48 kHz). The third entry sets nothing, which is how the game ran before; the last asks for a 256-frame buffer (about 5 ms) in Android's low-latency mode.
     private static final String[][] AUDIO_ENV = {
         {"SDL_AUDIO_DEVICE_SAMPLE_FRAMES=4096", "SDL_ANDROID_LOW_LATENCY_AUDIO=0"},
         {"SDL_AUDIO_DEVICE_SAMPLE_FRAMES=8192", "SDL_ANDROID_LOW_LATENCY_AUDIO=0"},
         {},
+        {"SDL_AUDIO_DEVICE_SAMPLE_FRAMES=256", "SDL_ANDROID_LOW_LATENCY_AUDIO=1"},
     };
-    private static final String[] AUDIO_LABELS = {"Smooth", "Extra smooth", "Low latency (original)"};
+    private static final String[] AUDIO_LABELS = {"Smooth", "Extra smooth", "Low latency (original)", "Lowest latency"};
 
     private SharedPreferences prefs;
     private TextView status;
@@ -173,5 +174,5 @@ public class P4Launcher extends Activity {
         startActivity(g);
         finish();
     }
-    }
-            
+                }
+                                    
