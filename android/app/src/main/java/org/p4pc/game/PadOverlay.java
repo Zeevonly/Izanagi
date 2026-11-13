@@ -14,14 +14,8 @@ import android.view.View;
 import org.libsdl.app.SDLActivity;
 
 /**
- * The virtual pad: d-pad, the four face buttons, L1/R1/L2/R2 and Start/Select, drawn over the game surface. Each button injects the Android key
- * the port's keyboard binding for that PS2 button uses (src/platform/pad/pad_sdl.c kKeys: arrows, Z X C V, Enter, Backspace, Q E, 1 3), through SDL's
- * key entry points, so the touch pad needs no code of its own on the native side. Bluetooth and USB controllers reach the game through SDL's
- * gamepad support (pad_sdl.c) and hide this overlay.
- *
- * Layout editor: press and hold the small menu icon at the top centre for about 0.7 s. Drag a control to move it, tap it and use - / + to resize it,
- * Alpha cycles the transparency of the whole pad, Reset restores the default layout and Done saves. With nothing changed the pad looks and behaves as
- * it always did; the saved layout is kept as fractions of the screen, so it survives a change of window size.
+ * The on-screen pad. Each button injects the Android key that pad_sdl.c binds to that PS2 button. Hold the small menu icon at the top centre
+ * for 0.7 s to edit the layout: drag a control to move it, tap it and use - / + to resize, Alpha for transparency, Reset, Done to save.
  */
 final class PadOverlay extends View {
     private static final int UP = 0, DOWN = 1, LEFT = 2, RIGHT = 3, CROSS = 4, CIRCLE = 5, TRIANGLE = 6, SQUARE = 7;
@@ -32,10 +26,10 @@ final class PadOverlay extends View {
         KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DEL, KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_E, KeyEvent.KEYCODE_1, KeyEvent.KEYCODE_3,
     };
 
-    // The parts of the pad that can be moved and resized. The d-pad and the face buttons move as one cluster each.
+    // movable parts (the d-pad and the face buttons move as one cluster each)
     private static final int E_DPAD = 0, E_FACE = 1, E_L1 = 2, E_L2 = 3, E_R1 = 4, E_R2 = 5, E_SELECT = 6, E_START = 7, ELEMENTS = 8;
     private static final int[] BUTTON_OF = {-1, -1, L1, L2, R1, R2, SELECT, START};
-    private static final float[] HALF_HEIGHT = {0f, 0f, 0.55f, 0.55f, 0.55f, 0.55f, 0.5f, 0.5f}; // of the box, in units of the control's size
+    private static final float[] HALF_HEIGHT = {0f, 0f, 0.55f, 0.55f, 0.55f, 0.55f, 0.5f, 0.5f};
     private static final float[][] FACE = {{0, 1.5f, CROSS}, {1.5f, 0, CIRCLE}, {0, -1.5f, TRIANGLE}, {-1.5f, 0, SQUARE}};
     private static final float[] OPACITIES = {1f, 0.75f, 0.5f, 0.3f};
     private static final float MIN_SIZE = 0.5f, MAX_SIZE = 2f;
@@ -53,9 +47,9 @@ final class PadOverlay extends View {
     private boolean[] down = new boolean[COUNT];
     private float u, vw, vh;
 
-    private final float[] baseX = new float[ELEMENTS], baseY = new float[ELEMENTS]; // default centres, in pixels
-    private final float[] offX = new float[ELEMENTS], offY = new float[ELEMENTS];   // the user's moves, as a fraction of the width / height
-    private final float[] size = new float[ELEMENTS];                               // 1 = default size
+    private final float[] baseX = new float[ELEMENTS], baseY = new float[ELEMENTS];
+    private final float[] offX = new float[ELEMENTS], offY = new float[ELEMENTS];  
+    private final float[] size = new float[ELEMENTS];                            
     private float opacity = 1f;
     private final SharedPreferences prefs;
 
@@ -112,12 +106,10 @@ final class PadOverlay extends View {
         return false;
     }
 
-    // ------------------------------------------------------------------ layout
 
     @Override
     protected void onSizeChanged(int w, int h, int ow, int oh) {
-        // The Android picture is fitted to 4:3. On wide phones keep the pad in its
-        // side bars rather than sizing it from the whole screen and covering play.
+        // the picture is fitted to 4:3; on wide phones keep the pad in the side bars
         vw = w;
         vh = h;
         final float gutter = Math.max(0f, (w - h * 4f / 3f) / 2f);
@@ -133,14 +125,14 @@ final class PadOverlay extends View {
         text.setTextSize(0.42f * u);
         baseX[E_DPAD] = dpadX; baseY[E_DPAD] = dpadY;
         baseX[E_FACE] = faceX; baseY[E_FACE] = faceY;
-        // shoulder buttons: two rows at the top corners, clear of the cutout
+        // shoulders: two rows at the top corners
         baseX[E_L1] = dpadX; baseY[E_L1] = 0.95f * u;
         baseX[E_L2] = dpadX; baseY[E_L2] = 2.25f * u;
         baseX[E_R1] = faceX; baseY[E_R1] = 0.95f * u;
         baseX[E_R2] = faceX; baseY[E_R2] = 2.25f * u;
         baseX[E_SELECT] = sideBars ? dpadX : w / 2f - 1.8f * u; baseY[E_SELECT] = h - u;
         baseX[E_START] = sideBars ? faceX : w / 2f + 1.8f * u; baseY[E_START] = h - u;
-        // the editor's buttons, in a row in the middle of the screen
+        // the editor's buttons: a row in the middle of the screen
         final float bw = 2.4f * u, bh = 1.1f * u, gap = 0.2f * u;
         final float left = w / 2f - (PANEL * bw + (PANEL - 1) * gap) / 2f;
         final float top = h / 2f - bh / 2f;
@@ -198,7 +190,6 @@ final class PadOverlay extends View {
         return (alpha << 24) | (argb & 0xFFFFFF);
     }
 
-    // ------------------------------------------------------------------ play
 
     /** Buttons under one finger. */
     private int hit(float x, float y) {
@@ -238,7 +229,7 @@ final class PadOverlay extends View {
     public boolean onTouchEvent(MotionEvent e) {
         if (editing) return onEditTouch(e);
         final int action = e.getActionMasked();
-        // the menu icon: a press that stays on it opens the layout editor; a short tap does nothing
+        // holding the menu icon opens the editor; a short tap does nothing
         if (action == MotionEvent.ACTION_DOWN && e.getPointerCount() == 1 && gearHit(e.getX(), e.getY())) {
             gearDown = true;
             postDelayed(gearHold, EDIT_HOLD_MS);
@@ -271,7 +262,6 @@ final class PadOverlay extends View {
         return mask != 0 || action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP;
     }
 
-    // ------------------------------------------------------------------ editor
 
     private void startEditing() {
         releaseAll();
@@ -281,7 +271,7 @@ final class PadOverlay extends View {
         invalidate();
     }
 
-    /** The control under a finger in the editor, with a little more room than when playing. */
+    /** The control under a finger in the editor. */
     private int elementAt(float x, float y) {
         for (int e = ELEMENTS - 1; e >= 0; e--) {
             final float s = ue(e);
@@ -363,7 +353,6 @@ final class PadOverlay extends View {
         return true;
     }
 
-    // ------------------------------------------------------------------ drawing
 
     private void button(Canvas c, float cx, float cy, float r, boolean on) {
         fill.setColor(a(on ? 0x99FFFFFF : 0x33000000));
@@ -395,7 +384,7 @@ final class PadOverlay extends View {
             c.drawPath(p, fill);
             c.drawPath(p, line);
         }
-        // face buttons: cross (bottom), circle (right), triangle (top), square (left)
+        // face buttons
         s = ue(E_FACE);
         final float faceX = cx(E_FACE), faceY = cy(E_FACE);
         final float r = 0.9f * s, k = 0.4f * s;
@@ -451,4 +440,9 @@ final class PadOverlay extends View {
         }
         final float top = panel[0].top;
         c.drawText("Drag a control to move it", vw / 2f, top - 1.0f * u, text);
-        c.drawText(selected >= 0 ? "Size " + Math.round(size[selected] *
+        c.drawText(selected >= 0 ? "Size " + Math.round(size[selected] * 100f) + "%  (- / + to resize)" : "Tap a control, then - / + to resize it",
+                vw / 2f, top - 0.35f * u, text);
+    }
+}
+// ---- end of PadOverlay.java ----
+                      
