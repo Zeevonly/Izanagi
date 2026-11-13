@@ -69,7 +69,11 @@ jobs:
           ("    static const char *const choices[] = {\"scale:1\", \"scale:2\", \"scale:3\", \"scale:4\",\n        \"scale:5\", \"scale:6\", \"scale:7\", \"scale:8\", \"native\", \"1366x768\",\n        \"1920x1080\", \"2560x1440\", \"3840x2160\"};\n",
            "    static const char *const choices[] = {\"scale:50%\", \"scale:60%\", \"scale:70%\", \"scale:75%\", \"scale:80%\", \"scale:90%\",\n        \"scale:1\", \"scale:125%\", \"scale:150%\", \"scale:175%\", \"scale:2\", \"scale:250%\", \"scale:3\", \"scale:4\",\n        \"scale:5\", \"scale:6\", \"scale:7\", \"scale:8\", \"native\", \"1366x768\",\n        \"1920x1080\", \"2560x1440\", \"3840x2160\"};\n"),
           ("    resolutionFormat(current, sizeof current, unused);\n    for (int i = 0; i < count; i++) if (strcmp(current, choices[i]) == 0) selected = i;\n",
-           "    for (int i = 0; i < count; i++) if (strcmp(choices[i], \"scale:1\") == 0) selected = i;\n    resolutionFormat(current, sizeof current, unused);\n    for (int i = 0; i < count; i++) if (strcmp(current, choices[i]) == 0) selected = i;\n"),
+           "    for (int i = 0; i < count; i++) if (resolutionSame(choices[i], \"scale:1\")) selected = i;\n    resolutionFormat(current, sizeof current, unused);\n    for (int i = 0; i < count; i++) if (resolutionSame(current, choices[i])) selected = i;\n"),
+          ("static void resolutionAdjust(int direction, void *unused)\n{\n",
+           "/* Not libc strcmp: with this many choices the compiler keeps a real strcmp call, which tools/crt_guard.py rejects in game-visible code. */\n"
+           "static int resolutionSame(const char *a, const char *b)\n{\n    while (*a && *a == *b) { a++; b++; }\n    return *a == *b;\n}\n\n"
+           "static void resolutionAdjust(int direction, void *unused)\n{\n"),
           ("(video->resolution == P4CFG_RESOLUTION_SCALE && video->scale == 1)", "(video->resolution == P4CFG_RESOLUTION_SCALE && video->scalePercent == 100)"),
           ])
           print("resolution percentages patched")
