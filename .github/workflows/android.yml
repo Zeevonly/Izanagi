@@ -27,6 +27,19 @@ jobs:
         with:
           submodules: true
           fetch-depth: 0
+      - name: Check the Java files were pasted completely
+        run: |
+          bad=0
+          for f in P4Launcher PadOverlay P4Activity; do
+            p=android/app/src/main/java/org/p4pc/game/$f.java
+            open=$(tr -cd '{' < "$p" | wc -c)
+            close=$(tr -cd '}' < "$p" | wc -c)
+            if [ "$open" != "$close" ]; then
+              echo "::error file=$p::$f.java is cut off ($open opening braces, $close closing). Replace its whole content again."
+              bad=1
+            fi
+          done
+          exit $bad
       - name: Resolution in percent (scale:50% to scale:800%)
         run: |
           python3 - <<'PY'
